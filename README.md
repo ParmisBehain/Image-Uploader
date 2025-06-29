@@ -61,43 +61,31 @@ Image Uploader/
 
 ---
 
-## Deployment
-
-You can deploy on any Python-compatible host:
-
-* **Streamlit Community Cloud**
-* **Heroku** (add a `Procfile`: `web: streamlit run app.py --server.port $PORT`)
-* **DigitalOcean App Platform**, **AWS**, **GCP**, etc.
-
-1. Push your code to GitHub.
-2. Connect your repo on the deploy platform.
-3. Configure your start command:
-
-   ```bash
-   streamlit run app.py
-   ```
-4. Ensure the real client IP is forwarded to the app so whitelisting works.
-
----
-
 ## Environment Modes
 
-The app uses a hard-coded `PROD` flag in **`app.py`** to switch between:
+The app uses a hard-coded `PROD` flag at the top of **`app.py`** to switch behavior:
 
-- **Local Development** (`PROD = False`)  
-  - A **Dev Controls** sidebar appears, letting you toggle “Developer mode” and simulate any client IP (default `127.0.0.1`).  
-  - No real IP-whitelist is enforced so you can freely test upload/delete functionality locally.
+* **Local Development** (`PROD = False`):
 
-- **Production** (`PROD = True`)  
-  - Sidebar controls are hidden.  
-  - The app reads the actual client IP from the `X-Forwarded-For` header and only allows requests from `20.218.226.24`.  
-  - All other IPs see an “Access denied” message.
+  * Shows **Dev Controls** in the sidebar to simulate any client IP (default `127.0.0.1`).
+  * **No IP whitelist** enforced.
 
-### How to Toggle
+* **Production** (`PROD = True`):
 
-1. Open **`app.py`** in your editor.  
-2. At the very top, set the flag:
+  * Hides Dev Controls.
+  * Attempts to detect the real public IP via query params, headers, or external services.
+  * Only allows requests from the whitelisted IP (`20.218.226.24`).
+  * Displays an “Access denied” message for other IPs.
 
-   ```python
-   # In local dev, set to False. In production, set to True.
-   PROD = False    # ← change to True before you deploy
+To toggle, edit the top of **`app.py`**:
+
+```python
+# In local dev, set to False. In production, set to True.
+PROD = False  # ← change to True before deploying
+```
+
+Then restart the app:
+
+```bash
+streamlit run app.py
+```
