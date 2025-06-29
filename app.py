@@ -8,12 +8,12 @@ PROD = True #It should be false for the local testing, so the local IP can see t
 
 if not PROD:
     # Local dev: sidebar toggle & simulate IP
-    st.sidebar.markdown("## 🛠️ Dev Controls")
+    st.sidebar.markdown("## Dev Controls")
     DEV_MODE = st.sidebar.checkbox("Developer mode (override IP)", value=True)
     client_ip = st.sidebar.text_input("Simulated client IP", value="127.0.0.1")
-#else:
+else:
     # Production on Streamlit Cloud: grab real client IP from header
-    #client_ip = st.experimental_get_query_params().get("X-Forwarded-For", [""])[0]
+    client_ip = st.experimental_get_query_params().get("X-Forwarded-For", [""])[0]
 
 # Whitelist logic only when PROD
 if PROD:
