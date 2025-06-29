@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 import requests
 
 # Configuration
-PROD = False  # Set to True in production
+PROD = True  # Set to True in production
 ALLOWED_IP = "20.218.226.24"
 CACHE_TTL = 300  # seconds
 UPLOAD_DIR = Path("uploads")
