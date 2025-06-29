@@ -17,7 +17,7 @@ else:
 
 # Whitelist logic only when PROD
 if PROD:
-    ALLOWED_IP = "138.246.3.8"
+    ALLOWED_IP = "20.218.226.24"
     if client_ip != ALLOWED_IP:
         st.error(f"🚫 Access denied: your IP ({client_ip}) is not allowed.")
         st.stop()
