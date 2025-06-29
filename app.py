@@ -3,13 +3,24 @@ from pathlib import Path
 import streamlit as st
 from werkzeug.utils import secure_filename
 
-# Local Dev IP Override
-DEV_MODE = st.sidebar.checkbox("Developer mode (override IP)", value=False)
-if DEV_MODE:
-    client_ip = st.sidebar.text_input("Simulate client IP", value="127.0.0.1")
+# Locally, don’t enforce the whitelist. On Cloud, enforce it.
+PROD = True #It should be false for the local testing, so the local IP can see the website
+
+if not PROD:
+    # Local dev: sidebar toggle & simulate IP
+    st.sidebar.markdown("## 🛠️ Dev Controls")
+    DEV_MODE = st.sidebar.checkbox("Developer mode (override IP)", value=True)
+    client_ip = st.sidebar.text_input("Simulated client IP", value="127.0.0.1")
 else:
-    # Replace this with your real IP‐fetching logic for production
-    client_ip = "20.218.226.24"  # placeholder; swap for your get_client_ip()
+    # Production on Streamlit Cloud: grab real client IP from header
+    client_ip = st.experimental_get_query_params().get("X-Forwarded-For", [""])[0]
+
+# Whitelist logic only when PROD
+if PROD:
+    ALLOWED_IP = "138.246.3.8"
+    if client_ip != ALLOWED_IP:
+        st.error(f"🚫 Access denied: your IP ({client_ip}) is not allowed.")
+        st.stop()
 
 st.set_page_config(page_title="Image Uploader", layout="wide")
 st.title("🖼️ Image Uploader")
