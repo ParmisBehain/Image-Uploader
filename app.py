@@ -2,59 +2,98 @@ import os
 from pathlib import Path
 import streamlit as st
 from werkzeug.utils import secure_filename
+import requests
 
-# Locally, don’t enforce the whitelist. On Cloud, enforce it.
-PROD = True #It should be false for the local testing, so the local IP can see the website
+# Configuration
+PROD = False  # Set to True in production
+ALLOWED_IP = "20.218.226.24"
+CACHE_TTL = 300  # seconds
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
 
-if not PROD:
-    # Local dev: sidebar toggle & simulate IP
-    st.sidebar.markdown("## Dev Controls")
-    DEV_MODE = st.sidebar.checkbox("Developer mode (override IP)", value=True)
-    client_ip = st.sidebar.text_input("Simulated client IP", value="127.0.0.1")
-else:
-    # Production on Streamlit Cloud: grab real client IP from header
-    client_ip = st.experimental_get_query_params().get("X-Forwarded-For", [""])[0]
+# Helpers
+@st.cache_data(ttl=CACHE_TTL)
+def detect_public_ip():
+    """Detect public IP via external services."""
+    services = [
+        'https://api.ipify.org?format=json',
+        'https://httpbin.org/ip',
+        'https://ipinfo.io/ip',
+    ]
+    for url in services:
+        try:
+            r = requests.get(url, timeout=3)
+            if 'ipify' in url:
+                return r.json().get('ip')
+            if 'httpbin' in url:
+                return r.json().get('origin', '').split(',')[0].strip()
+            if 'ipinfo' in url:
+                return r.text.strip()
+        except requests.RequestException:
+            continue
+    return None
 
-# Whitelist logic only when PROD
-if PROD:
-    ALLOWED_IP = "20.218.226.24"
-    if client_ip != ALLOWED_IP:
+
+def check_ip_whitelist(prod: bool, allowed_ip: str) -> str:
+    """Return the client IP after enforcing whitelist logic."""
+    if not prod:
+        st.sidebar.markdown("## Dev Controls")
+        dev_mode = st.sidebar.checkbox("Developer mode", value=True)
+        client_ip = st.sidebar.text_input("Simulated IP", value="127.0.0.1")
+        return client_ip.strip()
+
+    # Production: attempt auto-detection
+    if 'client_ip' not in st.session_state:
+        st.session_state.client_ip = None
+
+    if st.session_state.client_ip is None:
+        # Try query param
+        params = st.experimental_get_query_params()
+        ip_param = params.get("ip") or params.get("X-Forwarded-For")
+        if ip_param:
+            st.session_state.client_ip = ip_param[0].split(',')[0].strip()
+        else:
+            detected = detect_public_ip()
+            if detected:
+                st.session_state.client_ip = detected
+
+    client_ip = st.session_state.client_ip or ""
+    if client_ip != allowed_ip:
         st.error(f"🚫 Access denied: your IP ({client_ip}) is not allowed.")
         st.stop()
+    return client_ip
 
+# Main
+client_ip = check_ip_whitelist(PROD, ALLOWED_IP)
 st.set_page_config(page_title="Image Uploader", layout="wide")
 st.title("🖼️ Image Uploader")
 
-# Ensure uploads directory exists
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+st.sidebar.markdown(f"**Current IP:** {client_ip}")
+if PROD:
+    st.sidebar.markdown(f"**Allowed IP:** {ALLOWED_IP}")
 
-def allowed_file(filename: str) -> bool:
-    EXT = {"png", "jpg", "jpeg", "gif"}
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in EXT
-
-# Upload form
-uploaded_file = st.file_uploader("Choose an image to upload", type=["png","jpg","jpeg","gif"])
-if uploaded_file:
-    fname = secure_filename(uploaded_file.name)
-    save_path = UPLOAD_DIR / fname
-    with open(save_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    st.success(f"✅ `{fname}` uploaded successfully.")
+# Upload
+uploaded = st.file_uploader("Choose an image to upload", type=list(ALLOWED_EXTENSIONS))
+if uploaded:
+    filename = secure_filename(uploaded.name)
+    target = UPLOAD_DIR / filename
+    with open(target, "wb") as f:
+        f.write(uploaded.getbuffer())
+    st.success(f"✅ '{filename}' uploaded.")
 
 st.markdown("---")
 
-# Display and delete existing images
+# Display & Delete
 st.subheader("Uploaded Images")
 images = sorted(UPLOAD_DIR.iterdir())
 if not images:
     st.info("No images uploaded yet.")
 else:
     cols = st.columns(4)
-    for idx, img_path in enumerate(images):
+    for idx, img in enumerate(images):
         with cols[idx % 4]:
-            st.image(str(img_path), caption=img_path.name, use_column_width=True)
-            if st.button(f"Delete `{img_path.name}`", key=img_path.name):
-                img_path.unlink()
-    
-
+            st.image(str(img), caption=img.name, use_column_width=True)
+            if st.button(f"Delete {img.name}", key=img.name):
+                img.unlink()
+                st.experimental_rerun()
